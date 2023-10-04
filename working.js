@@ -31,7 +31,8 @@ function createReceiptsAndDocs() {
   try {
     const parentFolderId = "136g8n4fia__gnHdzFlEESMpiHEDln4FK";
     const parentFolder = DriveApp.getFolderById(parentFolderId);
-    const templateId = "1yOWzl8ZjI2aadUny_5MvQxiR334f_wmO1GfHc4z5yW8";
+    const sheetTemplateId = "1yOWzl8ZjI2aadUny_5MvQxiR334f_wmO1GfHc4z5yW8";
+    const docTemplateId = "1nngrck3HIMIUDLXaLPv_zQXGSxqAj0uQAtx7wUNiZgQ"; // <-- Replace with your Google Doc template ID
 
     const currentDate = new Date();
     const firstDayOfMonth = new Date(
@@ -48,7 +49,7 @@ function createReceiptsAndDocs() {
       "yyyy/MM/dd"
     )} "Payout of ฿"`;
     const threads = GmailApp.search(searchQuery);
-    const reversedThreads = threads.reverse(); // Reverse the threads to start from the beginning of the month
+    const reversedThreads = threads.reverse();
 
     let monthYearFolders = parentFolder.getFoldersByName(monthYearFolderName);
     let monthYearFolder;
@@ -60,16 +61,12 @@ function createReceiptsAndDocs() {
 
     let receiptCount = 0;
     let totalAmount = 0;
-    let currentIncrement = 1; // Initialize the incrementing number
+    let currentIncrement = 1;
 
     reversedThreads.forEach((thread) => {
       const messages = thread.getMessages();
       messages.forEach((message) => {
         const htmlBody = message.getBody();
-        const subject = message.getSubject();
-        const dateReceived = message.getDate();
-        const from = message.getFrom();
-
         const amountMatch = htmlBody.match(/Payout of ฿([\d,\.]+)/);
         const dateMatch = htmlBody.match(
           /arrive in your account by ([\w\s,]+)/
@@ -86,11 +83,11 @@ function createReceiptsAndDocs() {
           const incrementingID = generateIncrementingID(
             formattedDate,
             currentIncrement
-          ); // Pass the current increment
-          currentIncrement++; // Increment for the next set
+          );
+          currentIncrement++;
 
-          const templateFile = DriveApp.getFileById(templateId);
-          const newFile = templateFile.makeCopy(
+          const sheetTemplateFile = DriveApp.getFileById(sheetTemplateId);
+          const newFile = sheetTemplateFile.makeCopy(
             `${incrementingID} Receipt`,
             monthYearFolder
           );
@@ -101,28 +98,26 @@ function createReceiptsAndDocs() {
           sheet.getRange("L9").setValue(incrementingID);
 
           const extractedDetails = extractDetails(htmlBody);
-          let row = 20;
-          extractedDetails.forEach((detail) => {
-            sheet.getRange(`A${row}`).setValue(detail.details);
-            row++;
-          });
 
-          const docName = `${incrementingID} Payout`;
-          const docFile = DocumentApp.create(docName);
-          const doc = DocumentApp.openById(docFile.getId());
+          // Create Google Doc from template
+          const docTemplateFile = DriveApp.getFileById(docTemplateId);
+          const newDocFile = docTemplateFile.makeCopy(
+            `${incrementingID} Payout`,
+            monthYearFolder
+          );
+          const doc = DocumentApp.openById(newDocFile.getId());
           let header = doc.getHeader();
           if (!header) {
             header = doc.addHeader();
           }
           header.setText(`ID: ${incrementingID}`);
-
           const docText =
             extractedDetails
               .map(
                 (detail) =>
-                  `Date Range: ${detail.dateRange}\nDetails: ${detail.details}\nListing ID: ${detail.listingId}`
+                  `Dates: ${detail.dateRange}\nReservation: ${detail.details}\nListing ID: ${detail.listingId}`
               )
-              .join("\n\n") + `\n\nPayout Amount: ${formattedAmount}`;
+              .join("\n\n") + `\n\nPayout Amount: ${"฿" + formattedAmount}`;
           const docBody = doc.getBody();
           docBody.setText(docText);
 
@@ -131,9 +126,6 @@ function createReceiptsAndDocs() {
             const blob = attachment.copyBlob();
             monthYearFolder.createFile(blob);
           });
-
-          const docFileInDrive = DriveApp.getFileById(docFile.getId());
-          docFileInDrive.moveTo(monthYearFolder);
 
           receiptCount++;
         }
@@ -155,7 +147,7 @@ function createTimeDrivenTrigger() {
   const currentDate = new Date();
   ScriptApp.newTrigger("createReceiptsAndDocs")
     .timeBased()
-    .atDate(currentDate.getFullYear(), currentDate.getMonth() + 1, 0) // 0 represents the last day of the current month
+    .atDate(currentDate.getFullYear(), currentDate.getMonth() + 1, 0)
     .atHour(23)
     .nearMinute(59)
     .create();
