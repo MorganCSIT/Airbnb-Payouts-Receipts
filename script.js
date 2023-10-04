@@ -16,11 +16,32 @@ function extractDetails(html) {
   return matches;
 }
 
+function generateIncrementingID(date) {
+  const formattedDate = Utilities.formatDate(
+    date,
+    Session.getScriptTimeZone(),
+    "ddMMyyyy"
+  );
+  const folderId = "1Ezku3_ujdnIIferQAn2GutZKlfcs9mBO"; // Assuming this is the parent folder where all files are stored
+  const folder = DriveApp.getFolderById(folderId);
+  const files = folder.getFiles();
+  let count = 1;
+
+  while (files.hasNext()) {
+    const file = files.next();
+    if (file.getName().startsWith(formattedDate)) {
+      count++;
+    }
+  }
+
+  return formattedDate + count;
+}
+
 function createReceiptsAndDocs() {
   try {
-    const parentFolderId = "1Ezku3_ujdnIIferQAn2GutZKlfcs9mBO";
+    const parentFolderId = "136g8n4fia__gnHdzFlEESMpiHEDln4FK";
     const parentFolder = DriveApp.getFolderById(parentFolderId);
-    const templateId = "1Tb9VPZeVIiwQkCA0lshZwzMRmEELJxtxFytuJXNE3ZI";
+    const templateId = "1yOWzl8ZjI2aadUny_5MvQxiR334f_wmO1GfHc4z5yW8";
 
     const currentDate = new Date();
     const firstDayOfMonth = new Date(
@@ -64,7 +85,7 @@ function createReceiptsAndDocs() {
         if (amountMatch && dateMatch) {
           const amount = parseFloat(amountMatch[1].replace(",", ""));
           totalAmount += amount;
-          const formattedAmount = "฿" + amount.toLocaleString();
+          const formattedAmount = amount.toLocaleString();
           const dateStr = dateMatch[1].split(",")[0];
           const year = dateMatch[1].split(",")[1].trim();
           const formattedDate = `${dateStr}-${year}`.replace(" ", "-");
@@ -77,19 +98,34 @@ function createReceiptsAndDocs() {
           const newSheet = SpreadsheetApp.openById(newFile.getId());
           const sheet = newSheet.getSheets()[0];
           sheet.getRange("L25").setValue(formattedAmount);
-          sheet.getRange("C15").setValue(formattedDate);
+          sheet.getRange("L8").setValue(formattedDate);
+
+          const incrementingID = generateIncrementingID(currentDate);
+          sheet.getRange("L9").setValue(incrementingID);
+
+          const extractedDetails = extractDetails(htmlBody);
+          let row = 20;
+          extractedDetails.forEach((detail) => {
+            sheet.getRange(`A${row}`).setValue(detail.details);
+            row++;
+          });
 
           const docName = `Payment ${formattedDate}`;
           const docFile = DocumentApp.create(docName);
           const doc = DocumentApp.openById(docFile.getId());
+          let header = doc.getHeader();
+          if (!header) {
+            header = doc.addHeader();
+          }
+          header.setText(`ID: ${incrementingID}`);
 
-          const extractedDetails = extractDetails(htmlBody);
-          const docText = extractedDetails
-            .map(
-              (detail) =>
-                `Date Range: ${detail.dateRange}\nDetails: ${detail.details}\nListing ID: ${detail.listingId}`
-            )
-            .join("\n\n");
+          const docText =
+            extractedDetails
+              .map(
+                (detail) =>
+                  `Date Range: ${detail.dateRange}\nDetails: ${detail.details}\nListing ID: ${detail.listingId}`
+              )
+              .join("\n\n") + `\n\nPayout Amount: ${formattedAmount}`;
           const docBody = doc.getBody();
           docBody.setText(docText);
 
