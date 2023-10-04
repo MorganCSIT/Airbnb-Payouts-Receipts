@@ -1,8 +1,26 @@
+function extractDetails(html) {
+  const regexPattern =
+    /(\d{2}\/\d{2}\/\d{4} - \d{2}\/\d{2}\/\d{4})<br>([\w\d]+ - .+? - .+?)<br>Listing ID: (\d+)/g;
+
+  let matches = [];
+  let match;
+
+  while ((match = regexPattern.exec(html)) !== null) {
+    matches.push({
+      dateRange: match[1],
+      details: match[2],
+      listingId: match[3],
+    });
+  }
+
+  return matches;
+}
+
 function createReceiptsAndDocs() {
   try {
-    const parentFolderId = "1Ezku3_ujdnIIferQAn2GutZKlfcs9mBO"; // Replace with your actual folder ID
+    const parentFolderId = "1Ezku3_ujdnIIferQAn2GutZKlfcs9mBO";
     const parentFolder = DriveApp.getFolderById(parentFolderId);
-    const templateId = "1Tb9VPZeVIiwQkCA0lshZwzMRmEELJxtxFytuJXNE3ZI"; // Replace with your actual template ID
+    const templateId = "1Tb9VPZeVIiwQkCA0lshZwzMRmEELJxtxFytuJXNE3ZI";
 
     const currentDate = new Date();
     const firstDayOfMonth = new Date(
@@ -64,11 +82,16 @@ function createReceiptsAndDocs() {
           const docName = `Payment ${formattedDate}`;
           const docFile = DocumentApp.create(docName);
           const doc = DocumentApp.openById(docFile.getId());
+
+          const extractedDetails = extractDetails(htmlBody);
+          const docText = extractedDetails
+            .map(
+              (detail) =>
+                `Date Range: ${detail.dateRange}\nDetails: ${detail.details}\nListing ID: ${detail.listingId}`
+            )
+            .join("\n\n");
           const docBody = doc.getBody();
-          docBody.setText(
-            `Subject: ${subject}\nFrom: ${from}\nDate Received: ${dateReceived}\n\n`
-          );
-          docBody.appendParagraph(htmlBody).setLinkUrl(""); // Append the HTML content to the Google Doc
+          docBody.setText(docText);
 
           const attachments = message.getAttachments();
           attachments.forEach((attachment) => {
